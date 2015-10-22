@@ -5,7 +5,9 @@ import (
 )
 
 type ApplicationContext interface {
-	InstanceFactory
+	EnvironmentCapable
+	ListableInstanceFactory
+	HierarchicalInstanceFactory
 
 	// Return a name for the deployed application that this context belongs to.
 	ApplicationName() string
@@ -21,12 +23,57 @@ type ApplicationContext interface {
 
 	// Return the timestamp when this context was first loaded.
 	StartupTime() time.Time
+
+	// Expose AutowireCapableBeanFactory functionality for this context.
+	AutowireCapableInstanceFactory() AutowireCapableInstanceFactory
+}
+
+type ConfigurableApplicationContext interface {
 }
 
 type AbstractApplicationContext struct {
-	ApplicationContext
+	ConfigurableListableInstanceFactory
+
+	appName         string
+	id              string
+	displayName     string
+	startupTime     time.Time
+	parent          ApplicationContext
+	env             ConfigurableEnvironment
+	instanceFactory ConfigurableListableInstanceFactory
+}
+
+var (
+	_ = (ConfigurableApplicationContext)((*AbstractApplicationContext)(nil))
+	_ = (ApplicationContext)((*AbstractApplicationContext)(nil))
+)
+
+func NewAbstractApplicationContext() *AbstractApplicationContext {
+	return &AbstractApplicationContext{}
+}
+
+func (c *AbstractApplicationContext) Environment() Environment { return c.env }
+
+func (c *AbstractApplicationContext) ApplicationName() string { return c.appName }
+
+func (c *AbstractApplicationContext) DisplayName() string { return c.displayName }
+
+func (c *AbstractApplicationContext) Id() string { return c.id }
+
+func (c *AbstractApplicationContext) Parent() ApplicationContext { return c.parent }
+
+func (c *AbstractApplicationContext) StartupTime() time.Time { return c.startupTime }
+
+func (c *AbstractApplicationContext) AutowireCapableInstanceFactory() AutowireCapableInstanceFactory {
+	return c.instanceFactory
 }
 
 type GenericApplicationContext struct {
-	AbstractApplicationContext
+	*AbstractApplicationContext
+}
+
+func NewGenericApplicationContext() *GenericApplicationContext {
+	return &GenericApplicationContext{
+		AbstractApplicationContext: NewAbstractApplicationContext(),
+	}
 }

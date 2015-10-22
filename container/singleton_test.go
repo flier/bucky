@@ -6,9 +6,9 @@ import (
 	. "github.com/smartystreets/goconvey/convey"
 )
 
-func TestSingletonRegistry(t *testing.T) {
-	Convey("create SingletonRegistry", t, func() {
-		r := NewDefaultSingletonRegistry()
+func TestSingletonInstanceRegistry(t *testing.T) {
+	Convey("create SingletonInstanceRegistry", t, func() {
+		r := NewDefaultSingletonInstanceRegistry()
 
 		So(r, ShouldNotBeNil)
 		So(r.singletonObjects, ShouldNotBeNil)

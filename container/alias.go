@@ -131,3 +131,19 @@ func (r *SimpleAliasRegistry) retrieveAliases(name string) (result []string) {
 
 	return
 }
+
+func (r *SimpleAliasRegistry) canonicalName(name string) string {
+	r.lock.RLock()
+
+	for {
+		if n, exists := r.aliases[name]; exists {
+			name = n
+		} else {
+			break
+		}
+	}
+
+	r.lock.RUnlock()
+
+	return name
+}

@@ -7,7 +7,7 @@ import (
 	"time"
 )
 
-type SingletonRegistry interface {
+type SingletonInstanceRegistry interface {
 	// Check if this registry contains a singleton instance with the given name.
 	ContainsSingleton(name string) bool
 
@@ -24,8 +24,10 @@ type SingletonRegistry interface {
 	RegisterSingleton(name string, obj interface{}) error
 }
 
-type DefaultSingletonRegistry struct {
-	lock                          sync.RWMutex
+type DefaultSingletonInstanceRegistry struct {
+	AliasRegistry
+
+	singletonMutex                sync.RWMutex
 	singletonObjects              map[string]interface{}
 	singletonFactories            map[string]ObjectFactory
 	earlySingletonObjects         map[string]interface{}
@@ -34,8 +36,13 @@ type DefaultSingletonRegistry struct {
 	inCreationCheckExclusions     map[string]bool
 }
 
-func NewDefaultSingletonRegistry() *DefaultSingletonRegistry {
-	return &DefaultSingletonRegistry{
+var (
+	_ = (SingletonInstanceRegistry)((*DefaultSingletonInstanceRegistry)(nil))
+)
+
+func NewDefaultSingletonInstanceRegistry() *DefaultSingletonInstanceRegistry {
+	return &DefaultSingletonInstanceRegistry{
+		AliasRegistry:                 NewSimpleAliasRegistry(),
 		singletonObjects:              make(map[string]interface{}),
 		singletonFactories:            make(map[string]ObjectFactory),
 		earlySingletonObjects:         make(map[string]interface{}),
@@ -45,32 +52,32 @@ func NewDefaultSingletonRegistry() *DefaultSingletonRegistry {
 	}
 }
 
-func (r *DefaultSingletonRegistry) ContainsSingleton(name string) bool {
-	r.lock.RLock()
+func (r *DefaultSingletonInstanceRegistry) ContainsSingleton(name string) bool {
+	r.singletonMutex.RLock()
 	_, exists := r.singletonObjects[name]
-	r.lock.RUnlock()
+	r.singletonMutex.RUnlock()
 
 	return exists
 }
 
-func (r *DefaultSingletonRegistry) GetSingleton(name string) (interface{}, error) {
+func (r *DefaultSingletonInstanceRegistry) GetSingleton(name string) (interface{}, error) {
 	return r.getSingleton(name, true)
 }
 
-func (r *DefaultSingletonRegistry) getSingleton(name string, allowEarlyReference bool) (interface{}, error) {
-	r.lock.RLock()
+func (r *DefaultSingletonInstanceRegistry) getSingleton(name string, allowEarlyReference bool) (interface{}, error) {
+	r.singletonMutex.RLock()
 	obj, exists := r.singletonObjects[name]
-	r.lock.RUnlock()
+	r.singletonMutex.RUnlock()
 
 	if !exists && r.isSingletonCurrentlyInCreation(name) {
-		r.lock.RLock()
+		r.singletonMutex.RLock()
 		obj, exists = r.earlySingletonObjects[name]
-		r.lock.RUnlock()
+		r.singletonMutex.RUnlock()
 
 		if !exists && allowEarlyReference {
-			r.lock.RLock()
+			r.singletonMutex.RLock()
 			factory, exists := r.singletonFactories[name]
-			r.lock.RUnlock()
+			r.singletonMutex.RUnlock()
 
 			if !exists || factory == nil {
 				return nil, fmt.Errorf("singleton '%s' without instance or factory", name)
@@ -82,10 +89,10 @@ func (r *DefaultSingletonRegistry) getSingleton(name string, allowEarlyReference
 				return nil, err
 			}
 
-			r.lock.Lock()
+			r.singletonMutex.Lock()
 			r.earlySingletonObjects[name] = obj
 			delete(r.singletonFactories, name)
-			r.lock.Unlock()
+			r.singletonMutex.Unlock()
 
 			return obj, nil
 		}
@@ -94,7 +101,7 @@ func (r *DefaultSingletonRegistry) getSingleton(name string, allowEarlyReference
 	return obj, nil
 }
 
-func (r *DefaultSingletonRegistry) setCurrentlyInCreation(name string, inCreation bool) {
+func (r *DefaultSingletonInstanceRegistry) setCurrentlyInCreation(name string, inCreation bool) {
 	if !inCreation {
 		r.inCreationCheckExclusions[name] = true
 	} else {
@@ -102,19 +109,19 @@ func (r *DefaultSingletonRegistry) setCurrentlyInCreation(name string, inCreatio
 	}
 }
 
-func (r *DefaultSingletonRegistry) isCurrentlyInCreation(name string) bool {
+func (r *DefaultSingletonInstanceRegistry) isCurrentlyInCreation(name string) bool {
 	_, exists := r.inCreationCheckExclusions[name]
 
 	return !exists && r.isSingletonCurrentlyInCreation(name)
 }
 
-func (r *DefaultSingletonRegistry) isSingletonCurrentlyInCreation(name string) bool {
+func (r *DefaultSingletonInstanceRegistry) isSingletonCurrentlyInCreation(name string) bool {
 	_, exists := r.singletonsCurrentlyInCreation[name]
 
 	return exists
 }
 
-func (r *DefaultSingletonRegistry) beforeSingletonCreation(name string) {
+func (r *DefaultSingletonInstanceRegistry) beforeSingletonCreation(name string) {
 	_, exists := r.inCreationCheckExclusions[name]
 
 	if !exists {
@@ -122,7 +129,7 @@ func (r *DefaultSingletonRegistry) beforeSingletonCreation(name string) {
 	}
 }
 
-func (r *DefaultSingletonRegistry) afterSingletonCreation(name string) {
+func (r *DefaultSingletonInstanceRegistry) afterSingletonCreation(name string) {
 	_, exists := r.inCreationCheckExclusions[name]
 
 	if !exists {
@@ -130,27 +137,27 @@ func (r *DefaultSingletonRegistry) afterSingletonCreation(name string) {
 	}
 }
 
-func (r *DefaultSingletonRegistry) SingletonCount() int {
-	r.lock.RLock()
+func (r *DefaultSingletonInstanceRegistry) SingletonCount() int {
+	r.singletonMutex.RLock()
 	count := len(r.registeredSingletons)
-	r.lock.RUnlock()
+	r.singletonMutex.RUnlock()
 
 	return count
 }
 
-func (r *DefaultSingletonRegistry) SingletonNames() (names []string) {
-	r.lock.RLock()
+func (r *DefaultSingletonInstanceRegistry) SingletonNames() (names []string) {
+	r.singletonMutex.RLock()
 
 	for name, _ := range r.registeredSingletons {
 		names = append(names, name)
 	}
 
-	r.lock.RUnlock()
+	r.singletonMutex.RUnlock()
 
 	return
 }
 
-func (r *DefaultSingletonRegistry) RegisterSingleton(name string, obj interface{}) error {
+func (r *DefaultSingletonInstanceRegistry) RegisterSingleton(name string, obj interface{}) error {
 	if name == "" {
 		return errors.New("'name' must not be null")
 	}
@@ -164,15 +171,15 @@ func (r *DefaultSingletonRegistry) RegisterSingleton(name string, obj interface{
 	return nil
 }
 
-func (r *DefaultSingletonRegistry) addSingleton(name string, obj interface{}) {
-	r.lock.Lock()
+func (r *DefaultSingletonInstanceRegistry) addSingleton(name string, obj interface{}) {
+	r.singletonMutex.Lock()
 	r.singletonObjects[name] = obj
 	delete(r.singletonFactories, name)
 	r.registeredSingletons[name] = time.Now()
-	r.lock.Unlock()
+	r.singletonMutex.Unlock()
 }
 
-func (r *DefaultSingletonRegistry) addSingletonFactory(name string, factory ObjectFactory) error {
+func (r *DefaultSingletonInstanceRegistry) addSingletonFactory(name string, factory ObjectFactory) error {
 	if name == "" {
 		return errors.New("'name' must not be null")
 	}
@@ -182,19 +189,19 @@ func (r *DefaultSingletonRegistry) addSingletonFactory(name string, factory Obje
 	}
 
 	if !r.ContainsSingleton(name) {
-		r.lock.Lock()
+		r.singletonMutex.Lock()
 		r.singletonFactories[name] = factory
 		r.registeredSingletons[name] = time.Now()
-		r.lock.Unlock()
+		r.singletonMutex.Unlock()
 	}
 
 	return nil
 }
 
-func (r *DefaultSingletonRegistry) removeSingleton(name string) {
-	r.lock.Lock()
+func (r *DefaultSingletonInstanceRegistry) removeSingleton(name string) {
+	r.singletonMutex.Lock()
 	delete(r.singletonObjects, name)
 	delete(r.singletonFactories, name)
 	delete(r.registeredSingletons, name)
-	r.lock.Unlock()
+	r.singletonMutex.Unlock()
 }

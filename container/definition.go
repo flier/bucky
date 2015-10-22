@@ -30,6 +30,9 @@ type InstanceDefinition interface {
 	// Return the name of the current target scope for this instance.
 	Scope() InstanceScope
 
+	// Return whether this bean should be lazily initialized, i.e. not eagerly instantiated on startup.
+	IsLazyInit() bool
+
 	// Return whether this instance is "abstract", that is, not meant to be instantiated.
 	IsAbstract() bool
 
@@ -41,17 +44,17 @@ type InstanceDefinition interface {
 }
 
 type AbstractInstanceDefinition struct {
-	InstanceDefinition
-
 	depends         []string
 	desc            string
 	factoryInstance string
 	factoryMethod   string
 	parent          string
+	scope           InstanceScope
 	abstract        bool
 	lazy            bool
-	scope           InstanceScope
 }
+
+var _ = (InstanceDefinition)((*AbstractInstanceDefinition)(nil))
 
 func (d *AbstractInstanceDefinition) DependsOn() []string { return d.depends }
 
@@ -63,13 +66,25 @@ func (d *AbstractInstanceDefinition) FactoryMethodName() string { return d.facto
 
 func (d *AbstractInstanceDefinition) ParentName() string { return d.parent }
 
+func (d *AbstractInstanceDefinition) Scope() InstanceScope { return d.scope }
+
 func (d *AbstractInstanceDefinition) IsAbstract() bool { return d.abstract }
 
-func (d *AbstractInstanceDefinition) LazyInit() bool { return d.lazy }
+func (d *AbstractInstanceDefinition) IsLazyInit() bool { return d.lazy }
 
 func (d *AbstractInstanceDefinition) IsPrototype() bool { return d.scope == ScopePrototype }
 
 func (d *AbstractInstanceDefinition) IsSingleton() bool { return d.scope == ScopeSingleton }
+
+type RootBeanDefinition struct {
+	*AbstractInstanceDefinition
+}
+
+func NewRootBeanDefinition() *RootBeanDefinition {
+	return &RootBeanDefinition{
+		AbstractInstanceDefinition: &AbstractInstanceDefinition{},
+	}
+}
 
 type GenericInstanceDefinition struct {
 	AbstractInstanceDefinition
