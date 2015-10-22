@@ -13,15 +13,12 @@ import (
 var ErrEmpty = errors.New("empty string")
 
 type StringService interface {
-	bucky.Service
-
 	Uppercase(string) (string, error)
 
 	Count(string) int
 }
 
 type stringService struct {
-	StringService
 }
 
 func (stringService) Uppercase(s string) (string, error) {
@@ -38,9 +35,12 @@ func (stringService) Count(s string) int {
 func main() {
 	ctxt := context.Background()
 
-	bucky.ServerBuilder().
-		Codec(bucky.HttpCodec()).
-		BindTo(&net.TCPAddr{Port: 8080}).
-		Build(&stringService{}).
-		Serve(ctxt)
+	builder := &bucky.ServerBuilder{
+		Name:         "stringsvc1",
+		Addr:         &net.TCPAddr{Port: 8080},
+		CodecFactory: bucky.Http,
+		Encoding:     bucky.Json,
+	}
+
+	builder.Build(bucky.Rpc(&stringService{})).Serve(ctxt)
 }

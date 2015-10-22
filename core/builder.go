@@ -1,41 +1,42 @@
 package core
 
 import (
+	"crypto/tls"
 	"net"
 )
 
-type ServerBuilder interface {
-	Codec(codecs ...Codec) ServerBuilder
-
-	BindTo(addrs ...net.Addr) ServerBuilder
-
-	Build(services ...Service) Server
+type ServiceBuilder interface {
+	Build(service Service) Server
 }
 
-type serverBuilder struct {
-	codecs    []Codec
-	addresses []net.Addr
-	services  []Service
+type ServerBuilder struct {
+	Name              string
+	Addr              net.Addr
+	Backlog           int
+	Daemon            bool
+	Encoding          Encoding
+	Codec             ServerCodec
+	CodecFactory      CodecFactory
+	TLSConfig         *tls.Config
+	CertFile, KeyFile string
+	Transport         Transport
 }
 
-func NewServerBuilder() ServerBuilder {
-	return &serverBuilder{}
-}
+func (b *ServerBuilder) Build(service Service) Server {
+	Assert(b.Name, "No Name was specified")
+	Assert(b.Addr, "No Addr was specified")
 
-func (b *serverBuilder) Codec(codecs ...Codec) ServerBuilder {
-	b.codecs = append(b.codecs, codecs...)
+	if b.Codec == nil && b.CodecFactory != nil {
+		b.Codec = b.CodecFactory.ServerCodec(&ServerCodecConfig{
+			Name:      b.Name,
+			Addr:      b.Addr,
+			TLSConfig: b.TLSConfig,
+			CertFile:  b.CertFile,
+			KeyFile:   b.KeyFile,
+		})
+	}
 
-	return b
-}
+	Assert(b.Codec, "No Codec was specified")
 
-func (b *serverBuilder) BindTo(addres ...net.Addr) ServerBuilder {
-	b.addresses = append(b.addresses, addres...)
-
-	return b
-}
-
-func (b *serverBuilder) Build(services ...Service) Server {
-	b.services = append(b.services, services...)
-
-	return nil
+	return b.Codec.ServerDispatcher(b.Transport, service)
 }

@@ -4,14 +4,19 @@ import (
 	"github.com/flier/bucky/core"
 )
 
-type HttpCodec interface {
-	core.Codec
+var (
+	HttpCodec = (core.CodecFactory)(&httpCodecFactory{})
+)
+
+type httpCodecFactory struct {
 }
 
-type httpCodec struct {
-	HttpCodec
+var _ = (core.CodecFactory)((*httpCodecFactory)(nil))
+
+func (f *httpCodecFactory) ClientCodec(cfg *core.ClientCodecConfig) core.ClientCodec {
+	return NewHttpClientCodec(cfg)
 }
 
-func NewHttpCodec() HttpCodec {
-	return &httpCodec{}
+func (f *httpCodecFactory) ServerCodec(cfg *core.ServerCodecConfig) core.ServerCodec {
+	return NewHttpServerCodec(cfg)
 }
